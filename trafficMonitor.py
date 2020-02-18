@@ -1,27 +1,37 @@
 import cv2
+import os
 import requests
 import threading
 import time
 import matplotlib.pyplot as plt
 import cvlib as cv
 import datetime
+import json
+from urllib import request, parse
 from cvlib.object_detection import draw_bbox
 from bs4 import BeautifulSoup
+
 #if an alert has gone off on X camera in the past 5 tries
 alertCamera = [False,False,False,False]
+
 #the number of retries since the last time the camera set off an alert
 countCamera = [0,0,0,0]
+
 #name of each camera
 cameraNames = [ "Unit 101 to Milton Road Roundabout",
 		"Milton Road Roundabout to South Science Park",
 		"Kings Hedges Entrance Roundabout",
 		"Milton Road Roundabout"]
+
 log = 'logs.txt'
+
+dirpath = os.getcwd() + '/images'
+
 #traffic alert threshold for each camera
-vehiclesCount = [6,10,10,10]
+vehiclesThreshold = [6,10,10,10]
+
 def send_message_to_slack(text):
-	from urllib import request, parse
-	import json
+	print('Trying to send message to slack')
 	post = {"text": "{0}".format(text)}
 	try:
 		json_data = json.dumps(post)
@@ -31,7 +41,9 @@ def send_message_to_slack(text):
 		resp = request.urlopen(req)
 	except Exception as em:
 		print("EXCEPTION: " + str(em))
+		
 def monitor():
+	print("Beginning of time ;-)")
 	while True:
 		i = 0		
 		baseUrl = "https://www.cambridgesciencepark.co.uk"
@@ -44,7 +56,13 @@ def monitor():
 			startIndex = link.index("src=\"") + 5
 			endIndex = link.index("\"/>")
 			link = baseUrl + link[startIndex:endIndex]
-			img_data = requests.get(link).content
+			try:
+				img_data = requests.get(link).content
+			except requests.exceptions.ConnectionError:
+				f = open(log, "a")
+				f.write(currentDT.strftime("%Y-%m-%d %H:%M:%S") +'Connection Failed to: ' + link + ', associated to camera at: ' + cameraNames[i] +  ' skipping.\n')
+				time.sleep(5)
+			
 			with open('images/latest_picture.jpg', 'wb') as handler:
 				handler.write(img_data)	
 			im = cv2.imread('images/latest_picture.jpg')
@@ -54,16 +72,16 @@ def monitor():
 			#plt.imshow(output_image)
 			#plt.show()
 			vehicles = ['car','truck','motorcycle','bus']
-			vehiclesCount[i] = 0
+			vehiclesCount = 0
 			for vehicle in vehicles:
-				vehiclesCount[i] += label.count(vehicle)
-			#print('Camera ' + str(i) + ' - ' + str(vehiclesCount[i])) 
+				vehiclesCount += label.count(vehicle)
+
 			currentDT = datetime.datetime.now()
 			f = open(log, "a")
-			f.write(currentDT.strftime("%Y-%m-%d %H:%M:%S") +' Camera ' + cameraNames[i] + ' - ' + str(vehiclesCount[i]) + '\n')
-			f.close()	
+			f.write(currentDT.strftime("%Y-%m-%d %H:%M:%S") +' Camera ' + cameraNames[i] + ' - ' + str(vehiclesCount) + '\n')
+			f.close()
 			#checks if a camera has sent an alert in the past 5 attempts, if so it wont send another alert, if it's more than five attempts ago then it'll resend the alert
-			if not alertCamera[i] and vehiclesCount[i] >= 5: 		
+			if not alertCamera[i] and vehiclesCount >= vehiclesThreshold[i]: 		
 				send_message_to_slack('ALERT: Traffic is building up at ' + cameraNames[i])
 				send_message_to_slack(link)
 				alertCamera[i] = True
@@ -71,6 +89,12 @@ def monitor():
 			if countCamera[i] > 5:
 				alertCamera[i] = False
 			i+=1
-print('trying to send message to slack')
-send_message_to_slack('Monitor started')
+			
+
+send_message_to_slack('Traffic Monitoring started')
+
+if not os.path.exists(dirpath):
+    os.makedirs(dirpath)
+    
 monitor()
+
