@@ -74,7 +74,7 @@ def monitor():
 				f = open(log, "a")
 				f.write(currentDT.strftime("%Y-%m-%d %H:%M:%S") +' Connection Failed to: ' + link + ', associated to camera at: ' + cameraNames[i] +  ' skipping.\n')
 				time.sleep(5)
-				break
+				
 
 			with open('images/latest_picture.jpg', 'wb') as handler:
 				handler.write(img_data)
