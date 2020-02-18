@@ -1,3 +1,5 @@
 *.jpg
 *.py.swp
 logs.txt
+*.csv
+.idea/
