@@ -18,6 +18,7 @@ alertCamera = [False,False,False,False]
 #the number of retries since the last time the camera set off an alert
 countCamera = [0,0,0,0]
 
+
 #name of each camera
 cameraNames = [ "Unit 101 to Milton Road Roundabout",
 		"Milton Road Roundabout to South Science Park",
@@ -44,72 +45,88 @@ def send_message_to_slack(text):
 
 def monitor():
 	periodLog = 'trafficLog.csv'
-	periodTotal = 0
+	periodTotal = [0, 0, 0, 0]
 	periodLength = datetime.timedelta(minutes=30)
 	periodStart = datetime.datetime.now()
+
 	with open(periodLog, 'w', newline='') as file:
 		writer = csv.writer(file)
-		writer.writerow(["Period start", "Period end", "Vehicles counted"])
-		print("Beginning of time ;-)")
-		while True:
-			i = 0
-			baseUrl = "https://www.cambridgesciencepark.co.uk"
-			page = requests.get("https://www.cambridgesciencepark.co.uk/community/park-life/traffic/?cameras=1")
-			soup = BeautifulSoup(page.content, 'html.parser')
-			div_container = soup.find('div', class_='tfc-Cameras tfc-ContentHidden js-TrafficCamera')
-			links = div_container.findAll('img')
-			for link in links:
-				link = str(link)
-				startIndex = link.index("src=\"") + 5
-				endIndex = link.index("\"/>")
-				link = baseUrl + link[startIndex:endIndex]
-				try:
-					img_data = requests.get(link).content
-				except requests.exceptions.ConnectionError:
-					f = open(log, "a")
-					f.write(currentDT.strftime("%Y-%m-%d %H:%M:%S") +' Connection Failed to: ' + link + ', associated to camera at: ' + cameraNames[i] +  ' skipping.\n')
-					time.sleep(5)
-					break
-
-				with open('images/latest_picture.jpg', 'wb') as handler:
-					handler.write(img_data)
-				im = cv2.imread('images/latest_picture.jpg')
-				bbox, label, conf = cv.detect_common_objects(im)
-				#the three lines below produce the 'flashy' image to show you what is what
-				#output_image = draw_bbox(im, bbox, label, conf)
-				#plt.imshow(output_image)
-				#plt.show()
-				vehicles = ['car','truck','motorcycle','bus']
-				vehiclesCount = 0
-				for vehicle in vehicles:
-					vehiclesCount += label.count(vehicle)
-
-				currentDT = datetime.datetime.now()
+		writer.writerow(["Camera Name", "Period start", "Period end", "Total time in minutes", "Vehicles counted"])
+	file.close()
+	print("Beginning of time ;-)")
+	threadPeriodLength =  datetime.timedelta(seconds=30)
+	threadPeriodStart = datetime.datetime.now()
+	while True:
+		i = 0
+		baseUrl = "https://www.cambridgesciencepark.co.uk"
+		page = requests.get("https://www.cambridgesciencepark.co.uk/community/park-life/traffic/?cameras=1")
+		soup = BeautifulSoup(page.content, 'html.parser')
+		div_container = soup.find('div', class_='tfc-Cameras tfc-ContentHidden js-TrafficCamera')
+		links = div_container.findAll('img')
+		for link in links:
+			link = str(link)
+			startIndex = link.index("src=\"") + 5
+			endIndex = link.index("\"/>")
+			link = baseUrl + link[startIndex:endIndex]
+			try:
+				img_data = requests.get(link).content
+			except requests.exceptions.ConnectionError:
 				f = open(log, "a")
-				f.write(currentDT.strftime("%Y-%m-%d %H:%M:%S") +' Camera ' + cameraNames[i] + ' - ' + str(vehiclesCount) + '\n')
-				f.close()
-				#checks if a camera has sent an alert in the past 5 attempts, if so it wont send another alert, if it's more than five attempts ago then it'll resend the alert
-				if not alertCamera[i] and vehiclesCount >= vehiclesThreshold[i]:
-					send_message_to_slack('ALERT: Traffic is building up at ' + cameraNames[i])
-					send_message_to_slack(link)
-					alertCamera[i] = True
-				countCamera[i] =+ 1
-				if countCamera[i] > 5:
-					alertCamera[i] = False
-				i+=1
+				f.write(currentDT.strftime("%Y-%m-%d %H:%M:%S") +' Connection Failed to: ' + link + ', associated to camera at: ' + cameraNames[i] +  ' skipping.\n')
+				time.sleep(5)
+				break
 
-				periodTotal += vehiclesCount
+			with open('images/latest_picture.jpg', 'wb') as handler:
+				handler.write(img_data)
+			im = cv2.imread('images/latest_picture.jpg')
+			bbox, label, conf = cv.detect_common_objects(im)
+			#the three lines below produce the 'flashy' image to show you what is what
+			#output_image = draw_bbox(im, bbox, label, conf)
+			#plt.imshow(output_image)
+			#plt.show()
+			vehicles = ['car','truck','motorcycle','bus']
+			vehiclesCount = 0
+			for vehicle in vehicles:
+				vehiclesCount += label.count(vehicle)
 
-			if datetime.datetime.now() < periodStart + periodLength:
-				writer.writerow([str(periodStart), str(periodStart + periodLength), str(periodTotal)])
-				periodTotal = 0
-				periodStart = datetime.datetime.now()
+			currentDT = datetime.datetime.now()
+			f = open(log, "a")
+			f.write(currentDT.strftime("%Y-%m-%d %H:%M:%S") +' Camera ' + cameraNames[i] + ' - ' + str(vehiclesCount) + '\n')
+			f.close()
+			#checks if a camera has sent an alert in the past 5 attempts, if so it wont send another alert, if it's more than five attempts ago then it'll resend the alert
+			if not alertCamera[i] and vehiclesCount >= vehiclesThreshold[i]:
+				send_message_to_slack('ALERT: Traffic is building up at ' + cameraNames[i])
+				send_message_to_slack(link)
+				alertCamera[i] = True
+			countCamera[i] =+ 1
+			if countCamera[i] > 5:
+				alertCamera[i] = False
 
+			periodTotal[i] += vehiclesCount
+
+			i+=1
+
+		if datetime.datetime.now() > (periodStart + periodLength):
+			cameraIndex = 0
+			while cameraIndex <= 3:
+				with open(periodLog, 'a', newline='') as file:
+					writer = csv.writer(file)
+					writer.writerow([cameraNames[cameraIndex], str(periodStart), str(periodStart + periodLength), str(periodLength), str(periodTotal[cameraIndex])])
+					periodTotal[cameraIndex] = 0
+					cameraIndex += 1
+					file.close()
+			periodStart = datetime.datetime.now()
+
+		while datetime.datetime.now() < (threadPeriodStart + threadPeriodLength):
+			time.sleep(1)
+
+		threadPeriodStart = datetime.datetime.now()
 
 send_message_to_slack('Traffic Monitoring started')
 
 if not os.path.exists(dirpath):
 	os.makedirs(dirpath)
+
 
 monitor()
 
