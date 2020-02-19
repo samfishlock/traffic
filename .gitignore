@@ -1,5 +1,4 @@
 *.jpg
 *.py.swp
-logs.txt
-*.csv
+logs/
 .idea/

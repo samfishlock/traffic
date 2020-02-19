@@ -25,10 +25,10 @@ cameraNames = [ "Unit 101 to Milton Road Roundabout",
 		"Kings Hedges Entrance Roundabout",
 		"Milton Road Roundabout"]
 
-log = 'logs.txt'
-
-periodLog = 'trafficLog.csv'
-dirpath = os.getcwd() + '/images'
+logDirPath = os.getcwd() + '/logs'
+logName = logDirPath + '/SystemLog'
+periodLog = logDirPath + '/TrafficLog' + datetime.datetime.now().strftime("_%Y-%m-%d_%H:%M:%S") + '.csv'
+imageDirPath = os.getcwd() + '/images'
 
 vehiclesThreshold = [6,10,10,10]
 
@@ -39,7 +39,7 @@ def setupCsv():
 	file.close()
 
 def write_to_log(text):
-	f = open(log, "a")
+	f = open(logName, "a")
 	f.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " " + text + "\n")
 	f.close()	
 
@@ -141,12 +141,16 @@ def monitor():
 			#Reset thread timer
 			threadPeriodStart = datetime.datetime.now()
 
-if not os.path.exists(dirpath):
-	os.makedirs(dirpath)
+if not os.path.exists(imageDirPath):
+	os.makedirs(imageDirPath)
+
+if not os.path.exists(logDirPath):
+	os.makedirs(logDirPath)
 
 setupCsv()
 
-f = open(log, "w")
+#Start new system log file
+f = open(logName, "w")
 f.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " Traffic Monitoring started")
 f.close()
 
