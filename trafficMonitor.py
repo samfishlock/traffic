@@ -36,7 +36,7 @@ def setupCsv():
 	with open(periodLog, 'w', newline='') as file:
 			writer = csv.writer(file)
 			writer.writerow(["Camera Name", "Period start", "Period end", "Total time in minutes", "Vehicles counted"])
-		file.close()
+	file.close()
 
 def write_to_log(text):
 	f = open(log, "a")
@@ -144,7 +144,10 @@ def monitor():
 if not os.path.exists(dirpath):
 	os.makedirs(dirpath)
 
-write_to_log('Traffic Monitoring started')
 setupCsv()
-monitor()
 
+f = open(log, "w")
+f.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " Traffic Monitoring started")
+f.close()
+
+monitor()
