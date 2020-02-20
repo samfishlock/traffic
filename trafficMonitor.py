@@ -84,8 +84,12 @@ def monitor():
 					for link in links:
 						link = str(link)
 						startIndex = link.index("src=\"") + 5
-						endIndex = link.index("\"/>")
-						link = baseUrl + link[startIndex:endIndex]
+						try:
+							endIndex = link.index("\">")
+						except ValueError: #Fail silently
+							endIndex = link.index("\"/>")
+						
+						link = baseUrl + link[startIndex:endIndex]		
 						try:
 							img_data = requests.get(link).content
 						except requests.exceptions.ConnectionError:
@@ -141,7 +145,7 @@ def monitor():
 
 				#Reset thread timer
 				threadPeriodStart = datetime.datetime.now()
-		except Exception e:
+		except Exception as e:
 			write_to_log("Unexpected Exception: " + e)	
 
 if not os.path.exists(imageDirPath):
