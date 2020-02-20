@@ -64,82 +64,85 @@ def monitor():
 	baseUrl = "https://www.cambridgesciencepark.co.uk"
 	threadPeriodLength =  datetime.timedelta(seconds=30)
 	while True:
-		print("New monitor started")
-		threadPeriodStart = datetime.datetime.now()
-		while True:
-			i = 0
-			try:	
-				page = requests.get("https://www.cambridgesciencepark.co.uk/community/park-life/traffic/?cameras=1")
-			except requests.exceptions.ConnectionError:
-				write_to_log("Connection Failed to: " + link)
-				time.sleep(5)
-				#If we have exception here, break out of while loop, restart monitoring
-				break
-			
-			soup = BeautifulSoup(page.content, 'html.parser')
-			div_container = soup.find('div', class_='tfc-Cameras tfc-ContentHidden js-TrafficCamera')
-			if (not div_container == None): 
-				links = div_container.findAll('img')
-				for link in links:
-					link = str(link)
-					startIndex = link.index("src=\"") + 5
-					endIndex = link.index("\"/>")
-					link = baseUrl + link[startIndex:endIndex]
-					try:
-						img_data = requests.get(link).content
-					except requests.exceptions.ConnectionError:
-						write_to_log("Connection Failed to: " + link + ", associated to camera at: " + cameraNames[i] +  " skipping.")
-						#If we have exception here, break out of for loop. If the period has expired, write to csv, otherwise restart inner while loop (starts again from "New monitor started")
-						break
-
-					with open('images/latest_picture.jpg', 'wb') as handler:
-						handler.write(img_data)
-					im = cv2.imread('images/latest_picture.jpg')
-					bbox, label, conf = cv.detect_common_objects(im)
-
-					#the three lines below produce the 'flashy' image to show you what is what
-					'''output_image = draw_bbox(im, bbox, label, conf)
-					plt.imshow(output_image)
-					plt.show()'''
-
-					vehicles = ['car','truck','motorcycle','bus']
-					vehiclesCount = 0
-					for vehicle in vehicles:
-						vehiclesCount += label.count(vehicle)
-
-					write_to_log(" Camera " + cameraNames[i] + " - " + str(vehiclesCount))
-
-					#checks if a camera has sent an alert in the past 5 attempts, if so it wont send another alert, if it's more than five attempts ago then it'll resend the alert
-					if not alertCamera[i] and vehiclesCount >= vehiclesThreshold[i]:
-						send_message_to_slack('ALERT: Traffic is building up at ' + cameraNames[i])
-						send_message_to_slack(link)
-						alertCamera[i] = True
-					countCamera[i] =+ 1
-					if countCamera[i] > 5:
-						alertCamera[i] = False
-					periodTotal[i] += vehiclesCount
-					i+=1
-			else:
-				write_to_log("Failed to get div from website, skipping")
-			
-			#If the period for writing to csv has expired, write all totals to file
-			if datetime.datetime.now() > (periodStart + periodLength):
-				cameraIndex = 0
-				while cameraIndex <= 3:
-					with open(periodLog, 'a', newline='') as file:
-						writer = csv.writer(file)
-						writer.writerow([cameraNames[cameraIndex], str(periodStart), str(periodStart + periodLength), str(periodLength), str(periodTotal[cameraIndex])])
-						periodTotal[cameraIndex] = 0
-						cameraIndex += 1
-						file.close()
-				periodStart = datetime.datetime.now()
-
-			#If the loop between the four cameras takes less than the thread timer, sleep until that thread timer has expired
-			while datetime.datetime.now() < (threadPeriodStart + threadPeriodLength):
-				time.sleep(1)
-
-			#Reset thread timer
+		try:
+			print("New monitor started")
 			threadPeriodStart = datetime.datetime.now()
+			while True:
+				i = 0
+				try:	
+					page = requests.get("https://www.cambridgesciencepark.co.uk/community/park-life/traffic/?cameras=1")
+				except requests.exceptions.ConnectionError:
+					write_to_log("Connection Failed to: " + link)
+					time.sleep(5)
+					#If we have exception here, break out of while loop, restart monitoring
+					break
+				
+				soup = BeautifulSoup(page.content, 'html.parser')
+				div_container = soup.find('div', class_='tfc-Cameras tfc-ContentHidden js-TrafficCamera')
+				if (not div_container == None): 
+					links = div_container.findAll('img')
+					for link in links:
+						link = str(link)
+						startIndex = link.index("src=\"") + 5
+						endIndex = link.index("\"/>")
+						link = baseUrl + link[startIndex:endIndex]
+						try:
+							img_data = requests.get(link).content
+						except requests.exceptions.ConnectionError:
+							write_to_log("Connection Failed to: " + link + ", associated to camera at: " + cameraNames[i] +  " skipping.")
+							#If we have exception here, break out of for loop. If the period has expired, write to csv, otherwise restart inner while loop (starts again from "New monitor started")
+							break
+
+						with open('images/latest_picture.jpg', 'wb') as handler:
+							handler.write(img_data)
+						im = cv2.imread('images/latest_picture.jpg')
+						bbox, label, conf = cv.detect_common_objects(im)
+
+						#the three lines below produce the 'flashy' image to show you what is what
+						'''output_image = draw_bbox(im, bbox, label, conf)
+						plt.imshow(output_image)
+						plt.show()'''
+
+						vehicles = ['car','truck','motorcycle','bus']
+						vehiclesCount = 0
+						for vehicle in vehicles:
+							vehiclesCount += label.count(vehicle)
+
+						write_to_log(" Camera " + cameraNames[i] + " - " + str(vehiclesCount))
+
+						#checks if a camera has sent an alert in the past 5 attempts, if so it wont send another alert, if it's more than five attempts ago then it'll resend the alert
+						if not alertCamera[i] and vehiclesCount >= vehiclesThreshold[i]:
+							send_message_to_slack('ALERT: Traffic is building up at ' + cameraNames[i])
+							send_message_to_slack(link)
+							alertCamera[i] = True
+						countCamera[i] += 1
+						if countCamera[i] > 5:
+							alertCamera[i] = False
+						periodTotal[i] += vehiclesCount
+						i+=1
+				else:
+					write_to_log("Failed to get div from website, skipping")
+				
+				#If the period for writing to csv has expired, write all totals to file
+				if datetime.datetime.now() > (periodStart + periodLength):
+					cameraIndex = 0
+					while cameraIndex <= 3:
+						with open(periodLog, 'a', newline='') as file:
+							writer = csv.writer(file)
+							writer.writerow([cameraNames[cameraIndex], str(periodStart), str(periodStart + periodLength), str(periodLength), str(periodTotal[cameraIndex])])
+							periodTotal[cameraIndex] = 0
+							cameraIndex += 1
+							file.close()
+					periodStart = datetime.datetime.now()
+
+				#If the loop between the four cameras takes less than the thread timer, sleep until that thread timer has expired
+				while datetime.datetime.now() < (threadPeriodStart + threadPeriodLength):
+					time.sleep(1)
+
+				#Reset thread timer
+				threadPeriodStart = datetime.datetime.now()
+		except Exception e:
+			write_to_log("Unexpected Exception: " + e)	
 
 if not os.path.exists(imageDirPath):
 	os.makedirs(imageDirPath)
