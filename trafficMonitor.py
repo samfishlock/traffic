@@ -8,16 +8,10 @@ import cvlib as cv
 import datetime
 import json
 import csv
+import sys
 from urllib import request, parse
 from cvlib.object_detection import draw_bbox
 from bs4 import BeautifulSoup
-
-#if an alert has gone off on X camera in the past 5 tries
-alertCamera = [False,False,False,False]
-
-#the number of retries since the last time the camera set off an alert
-countCamera = [0,0,0,0]
-
 
 #name of each camera
 cameraNames = [ "Unit 101 to Milton Road Roundabout",
@@ -25,12 +19,13 @@ cameraNames = [ "Unit 101 to Milton Road Roundabout",
 		"Kings Hedges Entrance Roundabout",
 		"Milton Road Roundabout"]
 
+#the threshold for each camera
+vehiclesThreshold = [6,10,10,10]
+
 logDirPath = os.getcwd() + '/logs'
 logName = logDirPath + '/SystemLog'
 periodLog = logDirPath + '/TrafficLog' + datetime.datetime.now().strftime("_%Y-%m-%d_%H:%M:%S") + '.csv'
 imageDirPath = os.getcwd() + '/images'
-
-vehiclesThreshold = [6,10,10,10]
 
 def setupCsv():
 	with open(periodLog, 'w', newline='') as file:
@@ -53,7 +48,7 @@ def send_message_to_slack(text):
 			headers={'Content-Type': 'application/json'}) 
 		resp = request.urlopen(req)
 	except Exception as em:
-		write_to_log("Slack message failed to send, Exception: " + em)
+		write_to_log("Slack message failed to send, Exception: " + str(em))
 
 
 
@@ -63,6 +58,10 @@ def monitor():
 	periodStart = datetime.datetime.now()
 	baseUrl = "https://www.cambridgesciencepark.co.uk"
 	threadPeriodLength =  datetime.timedelta(seconds=30)
+	#if an alert has gone off on X camera in the past 5 tries
+	alertCamera = [False,False,False,False]
+	#the number of retries since the last time the camera set off an alert
+	countCamera = [0,0,0,0]
 	while True:
 		try:
 			print("New monitor started")
@@ -72,7 +71,7 @@ def monitor():
 				try:	
 					page = requests.get("https://www.cambridgesciencepark.co.uk/community/park-life/traffic/?cameras=1")
 				except requests.exceptions.ConnectionError:
-					write_to_log("Connection Failed to: " + link)
+					write_to_log("Connection Failed to website, check internet connection")
 					time.sleep(5)
 					#If we have exception here, break out of while loop, restart monitoring
 					break
@@ -122,7 +121,7 @@ def monitor():
 						countCamera[i] += 1
 						if countCamera[i] > 5:
 							alertCamera[i] = False
-                                                        countCamera[i] = 0
+							countCamera[i] = 0
 						periodTotal[i] += vehiclesCount
 						i+=1
 				else:
@@ -147,7 +146,9 @@ def monitor():
 				#Reset thread timer
 				threadPeriodStart = datetime.datetime.now()
 		except Exception as e:
-			write_to_log("Unexpected Exception: " + e)	
+			write_to_log("Unexpected Exception: " + str(e))
+		except AttributeError as e:
+			write_to_log("Attribute Error: " + str(e) + " most likely caused by website being down, sleeping for 1 hour")
 
 if not os.path.exists(imageDirPath):
 	os.makedirs(imageDirPath)
@@ -159,7 +160,7 @@ setupCsv()
 
 #Start new system log file
 f = open(logName, "w")
-f.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " Traffic Monitoring started")
+f.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " Traffic Monitoring started\n")
 f.close()
 
 monitor()
