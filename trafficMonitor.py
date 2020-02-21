@@ -119,7 +119,8 @@ def monitor():
 							send_message_to_slack(link)
 							alertCamera[i] = True
 						countCamera[i] += 1
-						if countCamera[i] > 5:
+						#if this camera has been checked 10 times without an alert, set its alert status to false
+						if countCamera[i] > 10:
 							alertCamera[i] = False
 							countCamera[i] = 0
 						periodTotal[i] += vehiclesCount
@@ -145,6 +146,11 @@ def monitor():
 
 				#Reset thread timer
 				threadPeriodStart = datetime.datetime.now()
+		except KeyboardInterrupt:
+			f = open(logName, "a")
+			f.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " Traffic Monitoring manually stopped\n")
+			f.close()
+			exit()
 		except Exception as e:
 			write_to_log("Unexpected Exception: " + str(e))
 		except AttributeError as e:
