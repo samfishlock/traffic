@@ -149,6 +149,7 @@ def monitor():
 			write_to_log("Unexpected Exception: " + str(e))
 		except AttributeError as e:
 			write_to_log("Attribute Error: " + str(e) + " most likely caused by website being down, sleeping for 1 hour")
+			time.sleep(3600)
 
 if not os.path.exists(imageDirPath):
 	os.makedirs(imageDirPath)
