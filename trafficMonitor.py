@@ -122,6 +122,7 @@ def monitor():
 						countCamera[i] += 1
 						if countCamera[i] > 5:
 							alertCamera[i] = False
+                                                        countCamera[i] = 0
 						periodTotal[i] += vehiclesCount
 						i+=1
 				else:
